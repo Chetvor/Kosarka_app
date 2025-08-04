@@ -27,7 +27,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import androidx.compose.runtime.rememberCoroutineScope
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,7 +44,7 @@ fun MainApp() {
     val navController = rememberNavController()
     var keepScreenOn by remember { mutableStateOf(false) }
 
-    // Опционально: в зависимости от состояния, не даём гаснуть экрану
+    // Не даём гаснуть экрану, если включено в настройках
     val activity = LocalContext.current as? ComponentActivity
     LaunchedEffect(keepScreenOn) {
         if (keepScreenOn) {
@@ -62,7 +61,7 @@ fun MainApp() {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = "messages",
+            startDestination = "settings",
             modifier = Modifier.padding(innerPadding)
         ) {
             composable("messages") { MessagesScreen() }
@@ -132,7 +131,7 @@ fun SettingsScreen(
     keepScreenOn: Boolean,
     onKeepScreenOnChange: (Boolean) -> Unit,
 ) {
-    var interval by remember { mutableStateOf("3") }
+    var interval by remember { mutableStateOf("9") }
     val context = LocalContext.current
 
     // Переменные для автоочистки
@@ -145,8 +144,6 @@ fun SettingsScreen(
             .fillMaxSize()
             .padding(24.dp)
     ) {
-        Text("Настройки", style = MaterialTheme.typography.titleLarge)
-        Spacer(Modifier.height(24.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -156,15 +153,54 @@ fun SettingsScreen(
                 onCheckedChange = onKeepScreenOnChange
             )
         }
+
         Spacer(Modifier.height(16.dp))
-        OutlinedTextField(
-            value = interval,
-            onValueChange = { interval = it.filter { ch -> ch.isDigit() } },
-            label = { Text("Интервал очистки уведомлений (мин)") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(16.dp))
+
+        // Поле и кнопка в одной строке
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = interval,
+                onValueChange = { interval = it.filter { ch -> ch.isDigit() } },
+                label = { Text("мин") },
+                singleLine = true,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 8.dp)
+            )
+            Button(
+                onClick = {
+                    if (isTimerRunning) {
+                        // Остановить автоочистку
+                        timerJob?.cancel()
+                        timerJob = null
+                        isTimerRunning = false
+                    } else {
+                        // Запустить автоочистку
+                        val delayMillis = (interval.toLongOrNull() ?: 3L) * 60_000L
+                        isTimerRunning = true
+                        timerJob = coroutineScope.launch {
+                            while (isActive) {
+                                sendClearNotificationsBroadcast(context)
+                                delay(delayMillis)
+                            }
+                        }
+                    }
+                },
+                enabled = interval.isNotEmpty(),
+                modifier = Modifier.weight(2f)
+            ) {
+                Text(
+                    if (isTimerRunning) "Остановить автоочистку"
+                    else "Запустить очистку"
+                )
+            }
+        }
+
         // Кнопка для открытия настроек разрешения
         Button(
             onClick = {
@@ -177,46 +213,10 @@ fun SettingsScreen(
             Text("Дать доступ к уведомлениям")
         }
         Spacer(Modifier.height(24.dp))
-        // КНОПКА ЗАПУСТИТЬ/ОСТАНОВИТЬ АВТООЧИСТКУ
-        Button(
-            onClick = {
-                if (isTimerRunning) {
-                    // Остановить автоочистку
-                    timerJob?.cancel()
-                    timerJob = null
-                    isTimerRunning = false
-                } else {
-                    // Запустить автоочистку
-                    val delayMillis = (interval.toLongOrNull() ?: 3L) * 60_000L
-                    isTimerRunning = true
-                    timerJob = coroutineScope.launch {
-                        while (isActive) {
-                            sendClearNotificationsBroadcast(context)
-                            delay(delayMillis)
-                        }
-                    }
-                }
-            },
-            enabled = interval.isNotEmpty(),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                if (isTimerRunning) "Остановить автоочистку"
-                else "Запустить автоочистку"
-            )
-        }
-        Spacer(Modifier.height(16.dp))
-        // Одиночная ручная очистка (оставь, если нужно)
-        Button(
-            onClick = { sendClearNotificationsBroadcast(context) },
-            enabled = interval.isNotEmpty(),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Очистить сейчас")
-        }
     }
 }
 
+// Важно: функция должна быть ВНЕ composable!
 fun sendClearNotificationsBroadcast(context: Context) {
     val intent = Intent("com.example.kosarka30.CLEAR_NOTIFICATIONS")
     context.sendBroadcast(intent)
