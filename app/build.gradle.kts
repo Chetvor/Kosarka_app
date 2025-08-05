@@ -69,4 +69,8 @@ dependencies {
     // Отладка
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+
+    implementation("org.json:json:20231013")
+
+
 }
