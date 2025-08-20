@@ -13,7 +13,7 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 1
-        versionName = "1.0"
+        versionName = "3.0.3-beta"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -36,8 +36,11 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
+
+
 
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")

@@ -60,6 +60,11 @@ import android.app.AlertDialog
 import android.content.pm.PackageManager
 
 
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+
+
 
 data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
@@ -309,7 +314,7 @@ fun ConnectionStatusBar(
                         }
                     }
                 }
-}
+            }
             // Вторая строка — внешний IP, город, страна, флаг
             if (status.isConnected && (externalIp.isNotEmpty() || city.isNotEmpty() || countryName.isNotEmpty() || countryCode.isNotEmpty())) {
                 Spacer(Modifier.height(2.dp))
@@ -549,12 +554,13 @@ fun MessagesScreen() {
 @Composable
 fun AppsScreen() {
     Box(
-        Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
         Text("Здесь будет список приложений")
     }
 }
+
 
 @Composable
 fun SettingsScreen(
@@ -564,80 +570,108 @@ fun SettingsScreen(
     var interval by remember { mutableStateOf("9") }
     val context = LocalContext.current
 
+    // Версия приложения
+    val versionName = BuildConfig.VERSION_NAME
+    val versionCode = BuildConfig.VERSION_CODE
+
+    // Автоочистка
     var isTimerRunning by remember { mutableStateOf(false) }
     var timerJob by remember { mutableStateOf<Job?>(null) }
     val coroutineScope = rememberCoroutineScope()
 
     Column(
-        Modifier
+        modifier = Modifier
             .fillMaxSize()
-            .padding(8.dp)
+            .padding(12.dp),
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("Экран", modifier = Modifier.weight(1f))
-            Switch(
-                checked = keepScreenOn,
-                onCheckedChange = onKeepScreenOnChange
-            )
-        }
+            // === 1 ряд: Экран + Switch + кнопка уведомлений ===
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("Экран")
 
-        Spacer(Modifier.height(8.dp))
+                Switch(
+                    checked = keepScreenOn,
+                    onCheckedChange = onKeepScreenOnChange
+                )
 
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            OutlinedTextField(
-                value = interval,
-                onValueChange = { interval = it.filter { ch -> ch.isDigit() } },
-                label = { Text("мин") },
-                singleLine = true,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(end = 8.dp)
-            )
-            Button(
-                onClick = {
-                    if (isTimerRunning) {
-                        timerJob?.cancel()
-                        timerJob = null
-                        isTimerRunning = false
-                    } else {
-                        val delayMillis = (interval.toLongOrNull() ?: 3L) * 60_000L
-                        isTimerRunning = true
-                        timerJob = coroutineScope.launch {
-                            while (isActive) {
-                                sendClearNotificationsBroadcast(context)
-                                delay(delayMillis)
+                Button(
+                    onClick = {
+                        context.startActivity(
+                            Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                        )
+                    },
+                    modifier = Modifier.weight(1f)   // <-- одинаковая ширина
+                ) {
+                    Text("Доступ к уведомлениям")
+                }
+            }
+
+// === 2 ряд: поле минут + кнопка автоочистки ===
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(
+                    value = interval,
+                    onValueChange = { value -> interval = value.filter(Char::isDigit) },
+                    label = { Text("мин") },
+                    singleLine = true,
+                    modifier = Modifier.width(72.dp),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                    ),
+                    textStyle = androidx.compose.material3.LocalTextStyle.current.copy(
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                )
+
+                Button(
+                    onClick = {
+                        if (isTimerRunning) {
+                            timerJob?.cancel()
+                            timerJob = null
+                            isTimerRunning = false
+                        } else {
+                            val delayMillis = (interval.toLongOrNull() ?: 3L) * 60_000L
+                            isTimerRunning = true
+                            timerJob = coroutineScope.launch {
+                                while (isActive) {
+                                    sendClearNotificationsBroadcast(context)
+                                    delay(delayMillis)
+                                }
                             }
                         }
-                    }
-                },
-                enabled = interval.isNotEmpty(),
-                modifier = Modifier.weight(2f)
-            ) {
-                Text(
-                    if (isTimerRunning) "Остановить очистку"
-                    else "Запустить очистку"
-                )
+                    },
+                    enabled = interval.isNotEmpty(),
+                    modifier = Modifier.weight(1f)   // <-- одинаковая ширина
+                ) {
+                    Text(if (isTimerRunning) "Остановить автоочистку" else "Включить автоочистку")
+                }
             }
+
         }
 
-        Button(
-            onClick = {
-                context.startActivity(
-                    Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-                )
-            },
-            modifier = Modifier.fillMaxWidth()
+        // Низ экрана: версия
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("Доступ к уведомлениям")
+            Divider()
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = "Версия: $versionName (build $versionCode)",
+                style = MaterialTheme.typography.bodySmall
+            )
         }
-        Spacer(Modifier.height(8.dp))
     }
 }
 
